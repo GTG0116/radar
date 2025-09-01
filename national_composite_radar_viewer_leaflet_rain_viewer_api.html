@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>National Composite Radar Viewer</title>
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <style>
+    :root { --bg:#0b1220; --panel:#111827; --text:#e5e7eb; --muted:#94a3b8; --accent:#38bdf8; }
+    html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"; }
+    #app { display: grid; grid-template-rows: auto 1fr auto; height: 100%; }
+    header { display:flex; align-items:center; gap:.75rem; padding:.75rem 1rem; background: linear-gradient(180deg, #0b1220, #0b1220cc); border-bottom: 1px solid #111827; position: sticky; top: 0; z-index: 500; }
+    header h1 { font-size: 1.05rem; margin:0; font-weight:600; letter-spacing:.2px; }
+    #map { height: 100%; width: 100%; }
+    .panel { display:flex; gap:1rem; align-items:center; padding:.75rem 1rem; background: linear-gradient(0deg, #0b1220, #0b1220cc); border-top: 1px solid #111827; flex-wrap: wrap; }
+    .btn { background: var(--panel); color: var(--text); border: 1px solid #1f2937; padding:.45rem .75rem; border-radius: 999px; cursor:pointer; font-weight:600; }
+    .btn:hover { border-color:#334155; }
+    .btn[aria-pressed="true"] { background:#0ea5e9; color:#0b1220; border-color:#38bdf8; }
+    .stack { display:flex; flex-direction:column; gap:.25rem; }
+    .row { display:flex; align-items:center; gap:.5rem; }
+    .time { min-width: 240px; font-variant-numeric: tabular-nums; color: var(--muted); }
+    input[type="range"] { width: 320px; accent-color: var(--accent); }
+    .legend { margin-left:auto; color: var(--muted); font-size:.9rem; }
+    .badge { display:inline-block; background:#1f2937; border:1px solid #334155; padding:.2rem .5rem; border-radius:6px; margin-left:.5rem; }
+    a { color: var(--accent); text-decoration:none; }
+    a:hover { text-decoration:underline; }
+
+    /* Color table */
+    .color-scale { display:flex; align-items:center; gap:.25rem; margin-left:1rem; }
+    .color-box { width:18px; height:18px; border-radius:3px; border:1px solid #1f2937; }
+    .scale-label { font-size:.8rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <header>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 12a9 9 0 1 1 18 0" stroke="#38bdf8" stroke-width="2"/><path d="M3 12h18" stroke="#38bdf8" stroke-width="2"/><path d="M7 12a5 5 0 1 1 10 0" stroke="#38bdf8" stroke-width="2"/></svg>
+      <h1>National Composite Radar</h1>
+    </header>
+    <div id="map"></div>
+    <div class="panel">
+      <button id="play" class="btn" aria-pressed="false" title="Play/Pause">▶ Play</button>
+      <div class="stack">
+        <div class="row">
+          <input id="frame" type="range" min="0" max="0" value="0" step="1" />
+          <span id="frameLabel" class="badge">Frame 1/1</span>
+        </div>
+        <div class="row time">
+          <span id="timestamp">Loading…</span>
+        </div>
+      </div>
+      <div class="row" style="margin-left:1rem;">
+        <label for="opacity">Opacity</label>
+        <input id="opacity" type="range" min="0" max="1" value="0.8" step="0.05" />
+      </div>
+      <div class="color-scale">
+        <div class="color-box" style="background:#00ffff" title="Light Rain"></div>
+        <div class="color-box" style="background:#0000ff" title="Moderate Rain"></div>
+        <div class="color-box" style="background:#00ff00" title="Heavy Rain"></div>
+        <div class="color-box" style="background:#ffff00" title="Very Heavy Rain"></div>
+        <div class="color-box" style="background:#ff0000" title="Intense Rain"></div>
+        <div class="color-box" style="background:#ff00ff" title="Extreme Rain/Hail"></div>
+        <span class="scale-label">Rain Intensity</span>
+      </div>
+      <div class="legend">
+        Tiles: <a href="https://www.rainviewer.com/api.html" target="_blank" rel="noopener">RainViewer</a> · Map: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OSM</a>
+      </div>
+    </div>
+  </div>
+
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+  <script>
+    // --- Map setup ---
+    const map = L.map('map', { zoomControl: true, minZoom: 2, worldCopyJump: true });
+    const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+    map.setView([40.1797, -76.1786], 9); // Center on Ephrata, PA
+
+    // Placeholder radar layer (URL is set once frames are loaded)
+    const radarLayer = L.tileLayer('', { opacity: 0.8, attribution: 'Radar tiles © RainViewer' }).addTo(map);
+
+    // --- UI elements ---
+    const playBtn = document.getElementById('play');
+    const frameSlider = document.getElementById('frame');
+    const frameLabel = document.getElementById('frameLabel');
+    const tsEl = document.getElementById('timestamp');
+    const opacitySlider = document.getElementById('opacity');
+
+    let frames = []; // {time: epoch, path: string}
+    let host = 'https://tilecache.rainviewer.com';
+    let idx = 0;
+    let timer = null;
+
+    function fmtUTC(epoch) {
+      const d = new Date(epoch * 1000);
+      return d.toLocaleString(undefined, { hour12: true, year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    }
+
+    function radarUrl(frame) {
+      return `${host}/v2/radar/${frame.path}/256/{z}/{x}/{y}/2/1_1.png`;
+    }
+
+    function updateFrame(newIndex) {
+      if (!frames.length) return;
+      idx = (newIndex + frames.length) % frames.length;
+      const f = frames[idx];
+      radarLayer.setUrl(radarUrl(f));
+      frameSlider.value = idx;
+      frameLabel.textContent = `Frame ${idx + 1}/${frames.length}`;
+      tsEl.textContent = `Valid: ${fmtUTC(f.time)}`;
+    }
+
+    function setPlaying(yes) {
+      if (yes) {
+        playBtn.textContent = '⏸ Pause';
+        playBtn.setAttribute('aria-pressed', 'true');
+        if (timer) clearInterval(timer);
+        timer = setInterval(() => updateFrame(idx + 1), 650);
+      } else {
+        playBtn.textContent = '▶ Play';
+        playBtn.setAttribute('aria-pressed', 'false');
+        if (timer) { clearInterval(timer); timer = null; }
+      }
+    }
+
+    // Events
+    playBtn.addEventListener('click', () => setPlaying(!timer));
+    frameSlider.addEventListener('input', (e) => { setPlaying(false); updateFrame(parseInt(e.target.value, 10)); });
+    opacitySlider.addEventListener('input', (e) => radarLayer.setOpacity(parseFloat(e.target.value)));
+
+    // --- Load RainViewer frames (only past scans) ---
+    async function loadFrames() {
+      tsEl.textContent = 'Loading frames…';
+      try {
+        const resp = await fetch('https://api.rainviewer.com/public/weather-maps.json');
+        const json = await resp.json();
+        host = json.host || host;
+        const past = (json.radar && Array.isArray(json.radar.past)) ? json.radar.past : [];
+
+        if (!past.length) throw new Error('No radar frames available.');
+
+        // Take the last up to 10 past frames only (live radar)
+        frames = past.slice(-10);
+
+        frameSlider.max = String(frames.length - 1);
+        frameSlider.value = String(frames.length - 1);
+        updateFrame(frames.length - 1); // start at the latest frame
+        setPlaying(false); // start paused
+      } catch (err) {
+        console.error(err);
+        tsEl.textContent = 'Failed to load radar frames';
+        alert('Could not load radar frames from RainViewer. Check your network/CORS.');
+      }
+    }
+
+    loadFrames();
+  </script>
+</body>
+</html>
