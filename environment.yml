@@ -1,0 +1,11 @@
+name: mrms-radar
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - boto3
+  - xarray
+  - cfgrib
+  - matplotlib
+  - cartopy
+  - numpy
