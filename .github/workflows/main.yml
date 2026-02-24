@@ -1,0 +1,33 @@
+name: Generate MRMS Radar Image
+
+on:
+  schedule:
+    - cron: '15 * * * *' # Runs at minute 15 of every hour to ensure new data is available
+  workflow_dispatch: # Allows you to run it manually from the Actions tab
+
+jobs:
+  build-and-plot:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -l {0}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Conda Environment
+        uses: mamba-org/setup-micromamba@v1
+        with:
+          environment-file: environment.yml
+          cache-environment: true
+          
+      - name: Run Python Script
+        run: python plot_mrms.py
+
+      - name: Upload Radar Image
+        uses: actions/upload-artifact@v4
+        with:
+          name: mrms-radar-image
+          path: mrms_conus_radar.png
+          retention-days: 7
