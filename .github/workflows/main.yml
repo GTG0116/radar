@@ -2,8 +2,11 @@ name: Generate MRMS Radar Image
 
 on:
   schedule:
-    - cron: '15 * * * *' # Runs at minute 15 of every hour to ensure new data is available
-  workflow_dispatch: # Allows you to run it manually from the Actions tab
+    - cron: '*/15 * * * *' # Run every 15 minutes to build an animation quickly
+  workflow_dispatch:
+
+permissions:
+  contents: write # Allows the bot to push to the repo
 
 jobs:
   build-and-plot:
@@ -25,9 +28,10 @@ jobs:
       - name: Run Python Script
         run: python plot_mrms.py
 
-      - name: Upload Radar Image
-        uses: actions/upload-artifact@v4
-        with:
-          name: mrms-radar-image
-          path: mrms_conus_radar.png
-          retention-days: 7
+      - name: Commit and Push Changes
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add docs/
+          git commit -m "Auto-update radar frames [skip ci]" || echo "No changes to commit"
+          git push
