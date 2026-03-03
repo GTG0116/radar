@@ -1,6 +1,5 @@
 {
     "Reflectivity": [
-        "Reflectivity_2026-03-02_170000.png",
         "Reflectivity_2026-03-02_175800.png",
         "Reflectivity_2026-03-02_190000.png",
         "Reflectivity_2026-03-02_195000.png",
@@ -9,7 +8,8 @@
         "Reflectivity_2026-03-02_215600.png",
         "Reflectivity_2026-03-02_223800.png",
         "Reflectivity_2026-03-02_225800.png",
-        "Reflectivity_2026-03-02_233600.png"
+        "Reflectivity_2026-03-02_233600.png",
+        "Reflectivity_2026-03-03_000000.png"
     ],
     "MESH": [],
     "QPE_24hr": []
