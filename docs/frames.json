@@ -11,6 +11,12 @@
         "Reflectivity_2026-03-12_213800.png",
         "Reflectivity_2026-03-12_220000.png"
     ],
+    "PrecipType": [],
+    "Rotation_1hr": [],
+    "Rotation_Instant": [],
     "MESH": [],
+    "PrecipRate": [],
+    "QPE_1hr": [],
+    "QPE_6hr": [],
     "QPE_24hr": []
 }

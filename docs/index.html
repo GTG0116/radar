@@ -5,71 +5,245 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MRMS Radar Loop</title>
     <style>
-        body { background-color: #1a1a1a; color: white; font-family: sans-serif; text-align: center; margin: 0; padding: 20px; }
-        #radar-container { max-width: 1200px; margin: 0 auto; position: relative; }
-        img { width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.5); }
-        .controls { margin-top: 15px; }
-        button { background: #333; color: white; border: 1px solid #555; padding: 10px 20px; cursor: pointer; border-radius: 4px; font-size: 16px;}
-        button:hover { background: #444; }
+        * { box-sizing: border-box; }
+        body {
+            background-color: #1a1a1a;
+            color: white;
+            font-family: sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 16px;
+        }
+        h1 { margin: 0 0 12px; font-size: 1.3rem; letter-spacing: 0.05em; color: #ddd; }
+        #radar-container { max-width: 1200px; margin: 0 auto; }
+        img {
+            width: 100%;
+            height: auto;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+            display: block;
+        }
+        #no-data {
+            display: none;
+            padding: 60px 20px;
+            color: #888;
+            font-size: 1.1rem;
+        }
+
+        /* Product selector */
+        #product-bar {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 6px;
+            margin-bottom: 12px;
+        }
+        .prod-btn {
+            background: #2a2a2a;
+            color: #ccc;
+            border: 1px solid #444;
+            padding: 6px 14px;
+            cursor: pointer;
+            border-radius: 20px;
+            font-size: 0.82rem;
+            transition: background 0.15s, border-color 0.15s;
+            white-space: nowrap;
+        }
+        .prod-btn:hover { background: #3a3a3a; }
+        .prod-btn.active {
+            background: #1565c0;
+            border-color: #1e88e5;
+            color: white;
+        }
+
+        /* Frame scrubber */
+        #scrubber-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 10px auto 0;
+            max-width: 900px;
+        }
+        #scrubber {
+            flex: 1;
+            accent-color: #1e88e5;
+            cursor: pointer;
+        }
+        #frame-label { font-size: 0.75rem; color: #aaa; min-width: 60px; text-align: right; }
+
+        /* Controls */
+        .controls { margin-top: 10px; display: flex; justify-content: center; gap: 10px; }
+        button.ctrl {
+            background: #333;
+            color: white;
+            border: 1px solid #555;
+            padding: 8px 18px;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+        button.ctrl:hover { background: #444; }
     </style>
 </head>
 <body>
 
+    <h1>MRMS Real-Time Radar</h1>
+
+    <div id="product-bar"></div>
+
     <div id="radar-container">
         <img id="radar-image" src="" alt="Loading radar...">
+        <div id="no-data">No frames available for this product yet.</div>
+    </div>
+
+    <div id="scrubber-row">
+        <input type="range" id="scrubber" min="0" value="0" step="1">
+        <span id="frame-label">0 / 0</span>
     </div>
 
     <div class="controls">
-        <button id="play-pause">Pause</button>
+        <button class="ctrl" id="btn-prev">&#9664; Prev</button>
+        <button class="ctrl" id="btn-play">Pause</button>
+        <button class="ctrl" id="btn-next">Next &#9654;</button>
     </div>
 
     <script>
+        let allFrames = {};      // { ProductName: ["file.png", ...] }
+        let currentProduct = '';
         let frames = [];
         let currentIndex = 0;
         let playing = true;
-        let interval;
+        let interval = null;
+        const INTERVAL_MS = 500;
 
+        // ── helpers ──────────────────────────────────────────────────
+        function showFrame(idx) {
+            if (!frames.length) return;
+            currentIndex = Math.max(0, Math.min(idx, frames.length - 1));
+            document.getElementById('radar-image').src = 'frames/' + frames[currentIndex];
+            document.getElementById('scrubber').value = currentIndex;
+            document.getElementById('frame-label').textContent =
+                `${currentIndex + 1} / ${frames.length}`;
+        }
+
+        function advance() {
+            showFrame((currentIndex + 1) % frames.length);
+        }
+
+        function startLoop() {
+            clearInterval(interval);
+            interval = setInterval(advance, INTERVAL_MS);
+        }
+
+        function stopLoop() {
+            clearInterval(interval);
+            interval = null;
+        }
+
+        // ── product switching ─────────────────────────────────────────
+        function switchProduct(name) {
+            currentProduct = name;
+            frames = allFrames[name] || [];
+
+            // update button styles
+            document.querySelectorAll('.prod-btn').forEach(b => {
+                b.classList.toggle('active', b.dataset.product === name);
+            });
+
+            const img   = document.getElementById('radar-image');
+            const noData = document.getElementById('no-data');
+            const scrubber = document.getElementById('scrubber');
+
+            if (!frames.length) {
+                img.style.display = 'none';
+                noData.style.display = 'block';
+                scrubber.max = 0;
+                document.getElementById('frame-label').textContent = '0 / 0';
+                return;
+            }
+
+            img.style.display = 'block';
+            noData.style.display = 'none';
+            scrubber.max = frames.length - 1;
+
+            // preload
+            frames.forEach(f => { const i = new Image(); i.src = 'frames/' + f; });
+
+            showFrame(frames.length - 1);  // start at most recent
+            if (playing) startLoop();
+        }
+
+        // ── init ──────────────────────────────────────────────────────
         async function init() {
             try {
-                // Fetch the list of frames generated by the Python script
                 const response = await fetch('frames.json');
-                frames = await response.json();
-                
-                if (frames.length > 0) {
-                    // Preload images
-                    frames.forEach(frame => {
-                        const img = new Image();
-                        img.src = 'frames/' + frame;
-                    });
-                    
-                    currentIndex = frames.length - 1; // Start at most recent
-                    document.getElementById('radar-image').src = 'frames/' + frames[currentIndex];
-                    startLoop();
-                }
+                allFrames = await response.json();
+
+                const bar = document.getElementById('product-bar');
+                const productNames = Object.keys(allFrames);
+
+                // Friendly display labels
+                const labels = {
+                    Reflectivity:    'Reflectivity',
+                    PrecipType:      'Precip Type',
+                    Rotation_1hr:    '1hr Rotation AGL',
+                    Rotation_Instant:'Instant Rotation AGL',
+                    MESH:            'Max Hail Size',
+                    PrecipRate:      'Precip Rate',
+                    QPE_1hr:         'QPE 1hr',
+                    QPE_6hr:         'QPE 6hr',
+                    QPE_24hr:        'QPE 24hr',
+                };
+
+                productNames.forEach(name => {
+                    const btn = document.createElement('button');
+                    btn.className = 'prod-btn';
+                    btn.dataset.product = name;
+                    btn.textContent = labels[name] || name;
+                    btn.addEventListener('click', () => switchProduct(name));
+                    bar.appendChild(btn);
+                });
+
+                // Default to first product that has frames, else first product
+                const first = productNames.find(n => allFrames[n].length > 0) || productNames[0];
+                if (first) switchProduct(first);
+
             } catch (error) {
                 console.error("Error loading frames:", error);
             }
         }
 
-        function advanceFrame() {
-            currentIndex++;
-            if (currentIndex >= frames.length) currentIndex = 0;
-            document.getElementById('radar-image').src = 'frames/' + frames[currentIndex];
-        }
-
-        function startLoop() {
-            interval = setInterval(advanceFrame, 500); // 500ms per frame
-        }
-
-        document.getElementById('play-pause').addEventListener('click', (e) => {
+        // ── controls ──────────────────────────────────────────────────
+        document.getElementById('btn-play').addEventListener('click', e => {
             playing = !playing;
             if (playing) {
                 startLoop();
-                e.target.innerText = "Pause";
+                e.target.textContent = 'Pause';
             } else {
-                clearInterval(interval);
-                e.target.innerText = "Play";
+                stopLoop();
+                e.target.textContent = 'Play';
             }
+        });
+
+        document.getElementById('btn-prev').addEventListener('click', () => {
+            stopLoop();
+            playing = false;
+            document.getElementById('btn-play').textContent = 'Play';
+            showFrame(currentIndex - 1 < 0 ? frames.length - 1 : currentIndex - 1);
+        });
+
+        document.getElementById('btn-next').addEventListener('click', () => {
+            stopLoop();
+            playing = false;
+            document.getElementById('btn-play').textContent = 'Play';
+            showFrame((currentIndex + 1) % frames.length);
+        });
+
+        document.getElementById('scrubber').addEventListener('input', e => {
+            stopLoop();
+            playing = false;
+            document.getElementById('btn-play').textContent = 'Play';
+            showFrame(parseInt(e.target.value));
         });
 
         init();
