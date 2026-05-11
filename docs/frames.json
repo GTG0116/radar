@@ -1,7 +1,5 @@
 {
     "Reflectivity": [
-        "Reflectivity_2026-05-10_124000.png",
-        "Reflectivity_2026-05-10_140800.png",
         "Reflectivity_2026-05-10_151400.png",
         "Reflectivity_2026-05-10_161200.png",
         "Reflectivity_2026-05-10_171400.png",
@@ -13,7 +11,8 @@
         "Reflectivity_2026-05-10_235600.png",
         "Reflectivity_2026-05-11_041400.png",
         "Reflectivity_2026-05-11_080000.png",
-        "Reflectivity_2026-05-11_113600.png"
+        "Reflectivity_2026-05-11_113600.png",
+        "Reflectivity_2026-05-11_141000.png"
     ],
     "PrecipType": [],
     "Rotation_1hr": [],
